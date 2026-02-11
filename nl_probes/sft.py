@@ -785,11 +785,12 @@ def build_loader_groups(
     }
 
 
-def _ensure_datasets_exist(dataset_loaders: list[ActDatasetLoader]) -> None:
+def _ensure_datasets_exist(dataset_loaders: list[ActDatasetLoader]) -> list[ActDatasetLoader]:
     """Materialize datasets on disk using a single process (rank 0).
 
     Each loader's `load_dataset` will create and save if missing; otherwise it
     simply loads. This avoids race conditions when multiple ranks start up.
+    Returns only the loaders that succeeded (skips those that error out).
     """
 
     # TODO: Switch to multiprocessing for speed
@@ -799,16 +800,24 @@ def _ensure_datasets_exist(dataset_loaders: list[ActDatasetLoader]) -> None:
     # Make only GPU 0 visible for this process
     os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
+    succeeded: list[ActDatasetLoader] = []
     try:
         for dl in dataset_loaders:
-            for split in dl.dataset_config.splits:
-                _ = dl.load_dataset(split)
+            try:
+                for split in dl.dataset_config.splits:
+                    _ = dl.load_dataset(split)
+                succeeded.append(dl)
+            except Exception as e:
+                name = getattr(dl.dataset_config, "dataset_name", type(dl).__name__)
+                print(f"WARNING: Skipping dataset '{name}' due to error: {e}")
     finally:
         # Revert to original state
         if old_visible_devices is None:
             os.environ.pop("CUDA_VISIBLE_DEVICES", None)
         else:
             os.environ["CUDA_VISIBLE_DEVICES"] = old_visible_devices
+
+    return succeeded
 
 
 if __name__ == "__main__":
@@ -987,9 +996,18 @@ if __name__ == "__main__":
 
             tokenizer = load_tokenizer(cfg.model_name)
 
-            # Ensure only rank 0 performs any on-disk dataset creation
+            # Ensure only rank 0 performs any on-disk dataset creation;
+            # loaders that fail (e.g. gated HF datasets) are dropped.
             if local_rank == 0:
-                _ensure_datasets_exist(loop_dataset_loaders)
+                survived = _ensure_datasets_exist(loop_dataset_loaders)
+                survived_indices = [loop_dataset_loaders.index(dl) for dl in survived]
+            else:
+                survived_indices = []
+            # Broadcast which loaders succeeded so all ranks agree
+            bcast = [survived_indices]
+            dist.broadcast_object_list(bcast, src=0)
+            survived_indices = bcast[0]
+            loop_dataset_loaders = [loop_dataset_loaders[i] for i in survived_indices]
             dist.barrier()
 
             all_training_data, all_eval_data = build_datasets(
