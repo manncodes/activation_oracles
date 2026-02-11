@@ -134,8 +134,27 @@ def get_text_only_lora_targets(model_name: str) -> str | None:
     return None
 
 
+def _get_split_llama_submodule(inner_model, layer: int, num_layers_8b: int):
+    """Maps a global layer index to the correct submodule in a split LLaMA model.
+
+    Layers 0..num_layers_8b-1 live in layers_first (8B section).
+    Layers num_layers_8b.. live in layers_last (70B section).
+    """
+    if layer < num_layers_8b:
+        return inner_model.layers_first[layer]
+    return inner_model.layers_last[layer - num_layers_8b]
+
+
 def get_hf_submodule(model: AutoModelForCausalLM, layer: int, use_lora: bool = False):
     """Gets the residual stream submodule for HF transformers"""
+
+    # Split LLaMA model: detected by the custom config field num_layers_8
+    if hasattr(model.config, "num_layers_8"):
+        num_layers_8b = model.config.num_layers_8
+        if use_lora:
+            return _get_split_llama_submodule(model.base_model.model.model, layer, num_layers_8b)
+        return _get_split_llama_submodule(model.model, layer, num_layers_8b)
+
     model_name = model.config._name_or_path
 
     if use_lora:

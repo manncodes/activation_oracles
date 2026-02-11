@@ -22,6 +22,9 @@ def load_model(
 ) -> AutoModelForCausalLM:
     print("🧠 Loading model...")
 
+    # Pop model_cls before forwarding to from_pretrained
+    model_cls = model_kwargs.pop("model_cls", None)
+
     # Gemma prefers eager attention; others use FA2
     attn = "eager" if "gemma" in model_name.lower() else "flash_attention_2"
 
@@ -32,7 +35,8 @@ def load_model(
         **model_kwargs,
     }
 
-    model = AutoModelForCausalLM.from_pretrained(model_name, **kwargs)
+    cls = model_cls if model_cls is not None else AutoModelForCausalLM
+    model = cls.from_pretrained(model_name, **kwargs)
     return model
 
 
@@ -121,6 +125,9 @@ def assert_no_peft_present(model, check_for_active_adapter_only=False):
 def get_layer_count(model_name: str) -> int:
     """Get the number of layers from a HuggingFace model config."""
     config = AutoConfig.from_pretrained(model_name)
+    # Split LLaMA model: total layers = 8B section + 70B section
+    if hasattr(config, "num_layers_8") and hasattr(config, "num_layers_70"):
+        return config.num_layers_8 + config.num_layers_70
     if hasattr(config, "num_hidden_layers"):
         return config.num_hidden_layers
     elif hasattr(config, "text_config"):

@@ -888,6 +888,15 @@ if __name__ == "__main__":
         "Qwen/Qwen3-4B",
     ]
 
+    # To train on a CustomSplitLLamaForCausalLM checkpoint:
+    #   from nl_probes.custom_models.split_llama import CustomSplitLLamaForCausalLM
+    #   models = ["/path/to/split_llama_checkpoint"]
+    #   # Then set model_kwargs = {"model_cls": CustomSplitLLamaForCausalLM} below.
+    #   # The checkpoint config.json must contain num_layers_8 and num_layers_70.
+    #   # Note: hook_onto_layer hidden dim must match the activation layers you probe.
+    #   #   8B layers (0..num_layers_8-1) have hidden_size from the 8B config,
+    #   #   70B layers (num_layers_8..) have hidden_size from the 70B config.
+
     for model_name in models:
         hf_repo_name = "N/A"
 
