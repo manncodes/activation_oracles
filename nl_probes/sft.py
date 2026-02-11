@@ -959,8 +959,8 @@ if __name__ == "__main__":
             # Set load_lora_path to checkpoint path to continue training
             {
                 "load_lora_path": None,
-                "dataset_loaders": latentqa_loaders + classification_dataset_loaders + past_lens_loaders,
-                "wandb_suffix": f"_latentqa_cls_past_lens_{model_name_str}",
+                "dataset_loaders": latentqa_loaders + classification_dataset_loaders,
+                "wandb_suffix": f"_latentqa_cls_{model_name_str}",
             },
             # {
             #     "load_lora_path": None,
