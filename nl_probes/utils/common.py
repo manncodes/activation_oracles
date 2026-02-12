@@ -25,6 +25,14 @@ def load_model(
     # Pop model_cls before forwarding to from_pretrained
     model_cls = model_kwargs.pop("model_cls", None)
 
+    # Auto-detect split llama checkpoints
+    if model_cls is None:
+        config = AutoConfig.from_pretrained(model_name)
+        if hasattr(config, "num_layers_8") and hasattr(config, "num_layers_70"):
+            from nl_probes.custom_models.split_llama import CustomSplitLLamaForCausalLM
+
+            model_cls = CustomSplitLLamaForCausalLM
+
     # Gemma prefers eager attention; others use FA2
     attn = "eager" if "gemma" in model_name.lower() else "flash_attention_2"
 
