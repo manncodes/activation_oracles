@@ -164,6 +164,17 @@ def get_hf_activation_steering_hook(
             output_is_tuple = False
 
         B_actual, L, d_model_actual = resid_BLD.shape
+
+        d_vec = normed_list[0].shape[-1]
+        if d_vec != d_model_actual:
+            raise ValueError(
+                f"Steering vector dimension ({d_vec}) does not match residual stream "
+                f"dimension ({d_model_actual}) at the hooked layer. "
+                f"Ensure hook_onto_layer has the same hidden_size as the activation "
+                f"layers used to collect steering vectors. For split-architecture "
+                f"models, 8B layers have a different hidden_size than 70B layers."
+            )
+
         if B_actual != B:
             raise ValueError(f"Batch mismatch: module B={B_actual}, provided vectors B={B}")
 
