@@ -137,6 +137,15 @@ def get_layer_count(model_name: str) -> int:
 
 
 def layer_percent_to_layer(model_name: str, layer_percent: int) -> int:
-    """Convert a layer percent to a layer number."""
-    max_layers = get_layer_count(model_name)
+    """Convert a layer percent to a layer number.
+
+    For split-architecture models the percent is relative to the first
+    section (8B layers) so that the resulting layer index never crosses
+    into the second section which has a different hidden_size.
+    """
+    config = AutoConfig.from_pretrained(model_name)
+    if hasattr(config, "num_layers_8"):
+        max_layers = config.num_layers_8
+    else:
+        max_layers = get_layer_count(model_name)
     return int(max_layers * (layer_percent / 100))
